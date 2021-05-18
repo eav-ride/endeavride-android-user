@@ -24,6 +24,12 @@
         tools:layout="@layout/fragment_notifications" />
 
     <fragment
+        android:id="@+id/navigation_map"
+        android:name="com.endeavride.endeavrideuser.MapsFragment"
+        android:label="@string/title_map"
+        tools:layout="@layout/fragment_maps" />
+
+    <fragment
         android:id="@+id/navigation_login"
         android:name="com.endeavride.endeavrideuser.ui.login.LoginFragment"
         android:label="login fragment"
