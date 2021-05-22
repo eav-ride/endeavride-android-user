@@ -10,33 +10,29 @@ import android.os.Build
 import androidx.fragment.app.Fragment
 import android.os.Bundle
 import android.util.Log
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.Toast
+import android.view.*
+import android.widget.ProgressBar
+import android.widget.SearchView
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.app.ActivityCompat.OnRequestPermissionsResultCallback
-import androidx.core.app.ActivityCompat.requireViewById
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Observer
 import com.endeavride.endeavrideuser.PermissionUtils.isPermissionGranted
 import com.endeavride.endeavrideuser.PermissionUtils.requestPermission
-import com.google.android.gms.common.GooglePlayServicesNotAvailableException
-import com.google.android.gms.common.GooglePlayServicesRepairableException
+import com.endeavride.endeavrideuser.databinding.FragmentMapsBinding
 import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.*
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.OnMapReadyCallback
-import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
-import com.google.android.gms.maps.GoogleMap.OnMyLocationButtonClickListener
-import com.google.android.gms.maps.GoogleMap.OnMyLocationClickListener
-import com.google.android.material.floatingactionbutton.FloatingActionButton
+import dagger.hilt.android.AndroidEntryPoint
 import java.io.IOException
 
-class MapsFragment : Fragment(), OnRequestPermissionsResultCallback {
+@AndroidEntryPoint
+class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermissionsResultCallback {
 
     companion object {
         /**
@@ -49,6 +45,10 @@ class MapsFragment : Fragment(), OnRequestPermissionsResultCallback {
         private const val PLACE_PICKER_REQUEST = 3
     }
 
+//    private lateinit var progressBar: ProgressBar
+    private val adapter = PlacePredictionAdapter()
+    private val viewModel: MapsViewModel by viewModels()
+
     private var permissionDenied = false
     private lateinit var map: GoogleMap
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -57,6 +57,13 @@ class MapsFragment : Fragment(), OnRequestPermissionsResultCallback {
     private lateinit var locationCallback: LocationCallback
     private lateinit var locationRequest: LocationRequest
     private var locationUpdateState = false
+
+    private var _binding: FragmentMapsBinding? = null
+    // This property is only valid between onCreateView and
+    // onDestroyView.
+    private val binding get() = _binding!!
+
+    private var dest: LatLng? = null
 
     private val callback = OnMapReadyCallback { googleMap ->
         /**
@@ -69,8 +76,10 @@ class MapsFragment : Fragment(), OnRequestPermissionsResultCallback {
          * user has installed Google Play services and returned to the app.
          */
         map = googleMap
-//        googleMap.setOnMyLocationButtonClickListener(this)
-//        googleMap.setOnMyLocationClickListener(this)
+        map.setOnMapLongClickListener {
+            map.clear()
+            placeMarkerOnMap(it)
+        }
         enableMyLocation()
     }
 
@@ -79,7 +88,11 @@ class MapsFragment : Fragment(), OnRequestPermissionsResultCallback {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        return inflater.inflate(R.layout.fragment_maps, container, false)
+        _binding = FragmentMapsBinding.inflate(inflater, container, false)
+//        progressBar = binding.progressBar
+//        binding.toolbar.inflateMenu(R.menu.search_place_menu)
+//        setHasOptionsMenu(true)
+        return binding.root
     }
 
     @RequiresApi(Build.VERSION_CODES.P)
@@ -88,6 +101,23 @@ class MapsFragment : Fragment(), OnRequestPermissionsResultCallback {
         val mapFragment = childFragmentManager.findFragmentById(R.id.map) as SupportMapFragment?
         mapFragment?.getMapAsync(callback)
 
+//        initRecyclerView()
+        viewModel.events.observe(viewLifecycleOwner, Observer { event ->
+            when(event) {
+//                is PlacesSearchEventLoading -> {
+//                    progressBar.isIndeterminate = true
+//                }
+//                is PlacesSearchEventError -> {
+//                    progressBar.isIndeterminate = false
+//                }
+//                is PlacesSearchEventFound -> {
+//                    progressBar.isIndeterminate = false
+//                    adapter.setPredictions(event.places)
+//                }
+            }
+            Log.d("Map", "#K_$event")
+        })
+
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity())
 
         locationCallback = object : LocationCallback() {
@@ -95,16 +125,10 @@ class MapsFragment : Fragment(), OnRequestPermissionsResultCallback {
                 super.onLocationResult(p0)
 
                 lastLocation = p0.lastLocation
-                placeMarkerOnMap(LatLng(lastLocation.latitude, lastLocation.longitude))
+//                placeMarkerOnMap(LatLng(lastLocation.latitude, lastLocation.longitude))
             }
         }
-
         createLocationRequest()
-
-//        var fab = layoutInflater.inflate(R.layout.fragment_maps)
-//        fab?.setOnClickListener {
-////            loadPlacePicker()
-//        }
     }
 
     override fun onResume() {
@@ -115,6 +139,49 @@ class MapsFragment : Fragment(), OnRequestPermissionsResultCallback {
             permissionDenied = false
         }
     }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+
+    // MARK: search place by address
+//    override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
+//        super.onCreateOptionsMenu(menu, inflater)
+//        Log.d("Map", "#K_onCreateOptionsMenu")
+//        val searchView = menu.findItem(R.id.search).actionView as SearchView
+//        searchView.apply {
+//            queryHint = getString(R.string.search_a_place)
+//            isIconifiedByDefault = false
+//            isFocusable = true
+//            isIconified = false
+//            requestFocusFromTouch()
+//            setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+//                override fun onQueryTextSubmit(query: String): Boolean {
+//                    return false
+//                }
+//
+//                override fun onQueryTextChange(newText: String): Boolean {
+//                    viewModel.onSearchQueryChanged(newText)
+//                    return true
+//                }
+//            })
+//        }
+//    }
+
+//    private fun initRecyclerView() {
+//        val linearLayoutManager = LinearLayoutManager(this)
+//        findViewById<RecyclerView>(R.id.recycler_view).apply {
+//            layoutManager = linearLayoutManager
+////            adapter = this@PlacesSearchDemoActivity.adapter
+//            addItemDecoration(
+//                DividerItemDecoration(
+//                    this@PlacesSearchDemoActivity,
+//                    linearLayoutManager.orientation
+//                )
+//            )
+//        }
+//    }
 
     /**
      * Enables the My Location layer if the fine location permission has been granted.
@@ -157,6 +224,12 @@ class MapsFragment : Fragment(), OnRequestPermissionsResultCallback {
         markerOptions.title(titleStr)
 
         map.addMarker(markerOptions)
+
+        dest = location
+    }
+
+    override fun onMarkerClick(p0: Marker): Boolean {
+        TODO("Not yet implemented")
     }
 
     private fun getAddress(latLng: LatLng): String {
@@ -256,11 +329,9 @@ class MapsFragment : Fragment(), OnRequestPermissionsResultCallback {
 
     // [START maps_check_location_permission_result]
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
-        Log.d("TAG", "#K_ 1")
         if (requestCode != LOCATION_PERMISSION_REQUEST_CODE) {
             return
         }
-        Log.d("TAG", "#K_ 2")
         if (isPermissionGranted(permissions, grantResults, Manifest.permission.ACCESS_FINE_LOCATION)) {
             // Enable the my location layer if the permission has been granted.
             enableMyLocation()

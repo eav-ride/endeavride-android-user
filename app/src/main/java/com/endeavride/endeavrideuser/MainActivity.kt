@@ -17,7 +17,9 @@ import com.endeavride.endeavrideuser.ui.login.LoginFragment
 import com.endeavride.endeavrideuser.ui.login.LoginViewModel
 import com.endeavride.endeavrideuser.ui.login.LoginViewModelFactory
 import com.google.android.gms.maps.MapFragment
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
 
     private lateinit var loginViewModel: LoginViewModel
@@ -37,12 +39,12 @@ class MainActivity : AppCompatActivity() {
         val navController = findNavController(R.id.nav_host_fragment_activity_main)
         // Passing each menu ID as a set of Ids because each
         // menu should be considered as top level destinations.
-        val appBarConfiguration = AppBarConfiguration(
-            setOf(
-                R.id.navigation_home, R.id.navigation_dashboard, R.id.navigation_notifications, R.id.navigation_map
-            )
-        )
-        setupActionBarWithNavController(navController, appBarConfiguration)
+//        val appBarConfiguration = AppBarConfiguration(
+//            setOf(
+//                R.id.navigation_home, R.id.navigation_dashboard, R.id.navigation_notifications, R.id.navigation_map
+//            )
+//        )
+//        setupActionBarWithNavController(navController, appBarConfiguration)
         navView.setupWithNavController(navController)
 
         loginViewModel = ViewModelProvider(this, LoginViewModelFactory())
