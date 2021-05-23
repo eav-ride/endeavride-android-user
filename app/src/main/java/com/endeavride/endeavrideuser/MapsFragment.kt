@@ -13,6 +13,7 @@ import android.util.Log
 import android.view.*
 import android.widget.ProgressBar
 import android.widget.SearchView
+import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -117,6 +118,15 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
             }
             Log.d("Map", "#K_$event")
         })
+        
+        binding.clearButton.setOnClickListener { 
+            map.clear()
+        }
+        
+        binding.requestDriverButton.setOnClickListener {
+            Log.d("Debug", "#K_send driver request with points $lastLocation and $dest")
+//            Toast.makeText(requireContext(), "send driver request with points $lastLocation and $dest", Toast.LENGTH_SHORT).show()
+        }
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity())
 
