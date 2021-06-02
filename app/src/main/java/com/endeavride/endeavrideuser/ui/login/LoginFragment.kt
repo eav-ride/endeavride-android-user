@@ -1,5 +1,7 @@
 package com.endeavride.endeavrideuser.ui.login
 
+import android.app.Activity
+import android.content.Context
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.annotation.StringRes
@@ -7,10 +9,12 @@ import androidx.fragment.app.Fragment
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
@@ -58,6 +62,7 @@ class LoginFragment : Fragment() {
         val usernameEditText = binding.username
         val passwordEditText = binding.password
         val loginButton = binding.login
+        val registerButton = binding.register
         val loadingProgressBar = binding.loading
 
         loginViewModel.loginFormState.observe(viewLifecycleOwner,
@@ -66,6 +71,7 @@ class LoginFragment : Fragment() {
                     return@Observer
                 }
                 loginButton.isEnabled = loginFormState.isDataValid
+                registerButton.isEnabled = loginFormState.isDataValid
                 loginFormState.usernameError?.let {
                     usernameEditText.error = getString(it)
                 }
@@ -115,12 +121,29 @@ class LoginFragment : Fragment() {
         }
 
         loginButton.setOnClickListener {
+            view.let { activity?.hideKeyboard(it) }
+
             loadingProgressBar.visibility = View.VISIBLE
             loginViewModel.login(
                 usernameEditText.text.toString(),
                 passwordEditText.text.toString()
             )
         }
+
+        registerButton.setOnClickListener {
+            view.let { activity?.hideKeyboard(it) }
+
+            loadingProgressBar.visibility = View.VISIBLE
+            loginViewModel.register(
+                usernameEditText.text.toString(),
+                passwordEditText.text.toString()
+            )
+        }
+    }
+
+    private fun Context.hideKeyboard(view: View) {
+        val inputMethodManager = getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
+        inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
     }
 
     private fun updateUiWithUser(model: LoggedInUserView) {
@@ -136,7 +159,8 @@ class LoginFragment : Fragment() {
 
     private fun showLoginFailed(@StringRes errorString: Int) {
         val appContext = context?.applicationContext ?: return
-        Toast.makeText(appContext, errorString, Toast.LENGTH_LONG).show()
+        Log.d("Msg", "#K_Login failed! $errorString")
+        Toast.makeText(appContext, "Login failed!", Toast.LENGTH_LONG).show()
     }
 
     override fun onDestroyView() {

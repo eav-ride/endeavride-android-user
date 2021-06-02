@@ -19,7 +19,7 @@ import com.endeavride.endeavrideuser.ui.login.LoginViewModelFactory
 import com.google.android.gms.maps.MapFragment
 import dagger.hilt.android.AndroidEntryPoint
 
-@AndroidEntryPoint
+//@AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
 
     private lateinit var loginViewModel: LoginViewModel

@@ -3,6 +3,7 @@ package com.endeavride.endeavrideuser
 import android.Manifest
 import android.content.IntentSender
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.location.Address
 import android.location.Geocoder
 import android.location.Location
@@ -20,19 +21,23 @@ import androidx.core.content.ContextCompat
 import androidx.core.app.ActivityCompat.OnRequestPermissionsResultCallback
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
 import com.endeavride.endeavrideuser.PermissionUtils.isPermissionGranted
 import com.endeavride.endeavrideuser.PermissionUtils.requestPermission
 import com.endeavride.endeavrideuser.databinding.FragmentMapsBinding
+import com.endeavride.endeavrideuser.ui.login.LoginViewModel
+import com.endeavride.endeavrideuser.ui.login.LoginViewModelFactory
 import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.*
 import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.maps.model.PolylineOptions
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.IOException
 
-@AndroidEntryPoint
+//@AndroidEntryPoint
 class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermissionsResultCallback {
 
     companion object {
@@ -48,12 +53,13 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
 
 //    private lateinit var progressBar: ProgressBar
     private val adapter = PlacePredictionAdapter()
-    private val viewModel: MapsViewModel by viewModels()
+    private lateinit var viewModel: MapsViewModel
+    private lateinit var loginViewModel: LoginViewModel
 
     private var permissionDenied = false
     private lateinit var map: GoogleMap
     private lateinit var fusedLocationClient: FusedLocationProviderClient
-    private lateinit var lastLocation: Location
+    private var lastLocation: Location? = null
 
     private lateinit var locationCallback: LocationCallback
     private lateinit var locationRequest: LocationRequest
@@ -65,6 +71,7 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
     private val binding get() = _binding!!
 
     private var dest: LatLng? = null
+    private var needDirection = false
 
     private val callback = OnMapReadyCallback { googleMap ->
         /**
@@ -82,6 +89,8 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
             placeMarkerOnMap(it)
         }
         enableMyLocation()
+
+        viewModel.checkIfCurrentRideAvailable()
     }
 
     override fun onCreateView(
@@ -99,12 +108,15 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
     @RequiresApi(Build.VERSION_CODES.P)
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        viewModel = ViewModelProvider(this, MapsViewModelFactory()).get(MapsViewModel::class.java)
+
         val mapFragment = childFragmentManager.findFragmentById(R.id.map) as SupportMapFragment?
         mapFragment?.getMapAsync(callback)
 
 //        initRecyclerView()
-        viewModel.events.observe(viewLifecycleOwner, Observer { event ->
-            when(event) {
+//        viewModel.events.observe(viewLifecycleOwner, Observer { event ->
+//            when(event) {
 //                is PlacesSearchEventLoading -> {
 //                    progressBar.isIndeterminate = true
 //                }
@@ -115,16 +127,47 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
 //                    progressBar.isIndeterminate = false
 //                    adapter.setPredictions(event.places)
 //                }
-            }
-            Log.d("Map", "#K_$event")
-        })
+//            }
+//            Log.d("Map", "#K_$event")
+//        })
+
+        viewModel.mapDirectionResult.observe(viewLifecycleOwner,
+            Observer { path ->
+                for (i in 0 until path.size) {
+                    map.addPolyline(PolylineOptions().addAll(path[i]).color(Color.RED))
+                }
+            })
+
+        viewModel.currentRide.observe(viewLifecycleOwner,
+            Observer { ride ->
+                println("#K_current ride $ride")
+                ride ?: return@Observer
+                val dest = Utils.decodeRideDirection(ride.direction)
+                if (dest != null) {
+                    placeMarkerOnMap(dest)
+                    this.dest = dest
+                    binding.requestDriverButton.text = "Waiting Driver..."
+                    binding.requestDriverButton.isClickable = false
+                    binding.clearButton.isEnabled = false
+                    requestDirection()
+                }
+            })
         
         binding.clearButton.setOnClickListener { 
             map.clear()
+            dest = null
         }
         
         binding.requestDriverButton.setOnClickListener {
             Log.d("Debug", "#K_send driver request with points $lastLocation and $dest")
+            dest?.let { it1 -> NetworkUtils.user?.userId?.let { it2 ->
+                lastLocation?.let { it3 -> LatLng(it3.latitude, it3.longitude) }?.let { it4 ->
+                    viewModel.createRide(
+                        it4, it1,
+                        it2
+                    )
+                }
+            } }
 //            Toast.makeText(requireContext(), "send driver request with points $lastLocation and $dest", Toast.LENGTH_SHORT).show()
         }
 
@@ -136,9 +179,25 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
 
                 lastLocation = p0.lastLocation
 //                placeMarkerOnMap(LatLng(lastLocation.latitude, lastLocation.longitude))
+
+                if (needDirection) {
+                    needDirection = false
+                    requestDirection()
+                }
             }
         }
         createLocationRequest()
+    }
+
+    private fun requestDirection() {
+        if (lastLocation == null) {
+            needDirection = true
+            return
+        }
+        dest?.let { it1 -> lastLocation?.let { LatLng(it.latitude, it.longitude) }?.let {
+            viewModel.getDirection(
+                it, it1)
+        } }
     }
 
     override fun onResume() {
@@ -223,6 +282,11 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
 //                placeMarkerOnMap(currentLatLng)
                 map.moveCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 12f))
 //                map.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 12f))
+
+                if (needDirection) {
+                    needDirection = false
+                    requestDirection()
+                }
             }
         }
     }

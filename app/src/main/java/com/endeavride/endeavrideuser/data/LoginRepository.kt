@@ -1,6 +1,8 @@
 package com.endeavride.endeavrideuser.data
 
 import com.endeavride.endeavrideuser.data.model.LoggedInUser
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Class that requests authentication and user information from the remote data source and
@@ -27,9 +29,23 @@ class LoginRepository(val dataSource: LoginDataSource) {
         dataSource.logout()
     }
 
-    fun login(username: String, password: String): Result<LoggedInUser> {
+    suspend fun login(username: String, password: String): Result<LoggedInUser> {
         // handle login
-        val result = dataSource.login(username, password)
+        val result = withContext(Dispatchers.IO) {
+            dataSource.login(username, password)
+        }
+        if (result is Result.Success) {
+            setLoggedInUser(result.data)
+        }
+
+        return result
+    }
+
+    suspend fun register(username: String, password: String): Result<LoggedInUser> {
+        // handle login
+        val result = withContext(Dispatchers.IO) {
+            dataSource.register(username, password)
+        }
 
         if (result is Result.Success) {
             setLoggedInUser(result.data)
