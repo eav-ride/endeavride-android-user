@@ -7,6 +7,7 @@ import com.android.volley.toolbox.StringRequest
 import com.endeavride.endeavrideuser.NetworkUtils
 import com.endeavride.endeavrideuser.data.model.*
 import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.PolyUtil
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -65,13 +66,8 @@ class MapDataSource {
         for (i in 0 until steps.length()) {
             val points = steps.getJSONObject(i).getJSONObject("polyline").getString("points")
             Log.d("Test", "#K_points: $points")
-            path.add(decodePoint(points))
+            path.add(PolyUtil.decode(points))
         }
         return path
-    }
-
-    private fun decodePoint(point: String): List<LatLng> {
-        val ps = point.split(",")
-        return listOf(LatLng(ps[0].toDouble(), ps[1].toDouble()))
     }
 }
