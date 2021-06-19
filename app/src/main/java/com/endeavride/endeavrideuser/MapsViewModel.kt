@@ -15,10 +15,7 @@ import com.google.android.libraries.places.api.model.TypeFilter
 import com.google.android.libraries.places.api.net.FindAutocompletePredictionsRequest
 import com.google.android.libraries.places.api.net.PlacesClient
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import javax.inject.Inject
 
 //@HiltViewModel
@@ -54,8 +51,9 @@ class MapsViewModel(
         }
     }
 
-    fun checkIfCurrentRideAvailable() {
+    fun checkIfCurrentRideAvailable(delayTime: Long = 0) {
         viewModelScope.launch {
+            delay(delayTime)
             val result = dataSource.checkIfCurrentRideAvailable()
             println("#K_check current ride result: $result")
             if (result is Result.Success) {

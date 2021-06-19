@@ -24,6 +24,7 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import com.endeavride.endeavrideuser.PermissionUtils.isPermissionGranted
 import com.endeavride.endeavrideuser.PermissionUtils.requestPermission
+import com.endeavride.endeavrideuser.data.model.Ride
 import com.endeavride.endeavrideuser.databinding.FragmentMapsBinding
 import com.endeavride.endeavrideuser.ui.login.LoginViewModel
 import com.endeavride.endeavrideuser.ui.login.LoginViewModelFactory
@@ -51,6 +52,23 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         private const val PLACE_PICKER_REQUEST = 3
     }
 
+    enum class OrderStatus(val value: Int)
+    {
+        DEFAULT(-1),
+        UNASSIGNED(0),
+        ASSIGNING(1),
+        PICKING(2),
+        ARRIVED_USER_LOCATION(3),
+        STARTED(4),
+        FINISHED(5),
+        CANCELED(6);
+
+        companion object {
+            private val VALUES = values()
+            fun from(value: Int) = VALUES.firstOrNull { it.value == value }
+        }
+    }
+
 //    private lateinit var progressBar: ProgressBar
     private val adapter = PlacePredictionAdapter()
     private lateinit var viewModel: MapsViewModel
@@ -72,6 +90,9 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
 
     private var dest: LatLng? = null
     private var needDirection = false
+
+    private var status: OrderStatus = OrderStatus.DEFAULT
+    private var isAutoPollingEnabled = true
 
     private val callback = OnMapReadyCallback { googleMap ->
         /**
@@ -141,22 +162,15 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         viewModel.currentRide.observe(viewLifecycleOwner,
             Observer { ride ->
                 println("#K_current ride $ride")
+                setStatus(ride)
                 ride ?: return@Observer
                 val dest = Utils.decodeRideDirection(ride.direction)
-                if (dest != null) {
+                if (dest != null && this.dest != dest) {
                     placeMarkerOnMap(dest)
                     this.dest = dest
-                    binding.requestDriverButton.text = "Waiting Driver..."
-                    binding.requestDriverButton.isClickable = false
-                    binding.clearButton.isEnabled = false
                     requestDirection()
                 }
             })
-        
-        binding.clearButton.setOnClickListener { 
-            map.clear()
-            dest = null
-        }
         
         binding.requestDriverButton.setOnClickListener {
             Log.d("Debug", "#K_send driver request with points $lastLocation and $dest")
@@ -187,6 +201,46 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
             }
         }
         createLocationRequest()
+    }
+
+    private fun setStatus(ride: Ride?) {
+        val rideStatus = ride?.status ?: -1
+        status = OrderStatus.from(rideStatus) ?: OrderStatus.DEFAULT
+
+        reloadData()
+    }
+
+    private fun reloadData() {
+        if (status == OrderStatus.DEFAULT) {
+            binding.requestDriverButton.text = "Request Driver"
+            binding.requestDriverButton.isClickable = true
+            binding.clearButton.text = "Clear"
+            binding.clearButton.isEnabled = true
+
+            binding.clearButton.setOnClickListener {
+                map.clear()
+                dest = null
+            }
+        } else if (status == OrderStatus.UNASSIGNED || status == OrderStatus.ASSIGNING) {
+            binding.requestDriverButton.text = "Waiting Driver..."
+            binding.requestDriverButton.isClickable = false
+            binding.clearButton.text = "Cancel"
+            binding.clearButton.isEnabled = true
+
+            binding.clearButton.setOnClickListener {
+                // show a popup to confirm if user want to cancel request, if confirmed, stop auto refresh, post cancel ride request
+                isAutoPollingEnabled = false
+            }
+
+            if (isAutoPollingEnabled) {
+                viewModel.checkIfCurrentRideAvailable(3000)
+            }
+        } else if (status == OrderStatus.PICKING) {
+            binding.requestDriverButton.text = "Waiting Driver..."
+            binding.requestDriverButton.isClickable = false
+            binding.clearButton.text = "Cancel"
+            binding.clearButton.isEnabled = false
+        }
     }
 
     private fun requestDirection() {

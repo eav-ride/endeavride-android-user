@@ -7,6 +7,9 @@ import com.github.kittinunf.fuel.core.FuelError
 import com.github.kittinunf.fuel.core.FuelManager
 import com.github.kittinunf.fuel.coroutines.awaitResponseResult
 import com.github.kittinunf.fuel.coroutines.awaitStringResponseResult
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.yield
 import java.io.IOException
 
 data class RequestResultModel(val resData: String?, val error: FuelError?)
@@ -69,6 +72,28 @@ class NetworkUtils {
                 println("fuel post request error: $error")
             }
             return RequestResultModel(bytes, error)
+        }
+    }
+
+    suspend fun poll(initialDelay: Long = 5000,
+                     maxDelay: Long = 30000,
+                     factor: Double = 2.0,
+                     block: suspend () -> Unit) {
+
+        var currentDelay = initialDelay
+        while (true) {
+            try {
+                currentDelay = try {
+                    block()
+                    initialDelay
+                } catch (e: IOException) {
+                    (currentDelay * factor).toLong().coerceAtMost(maxDelay)
+                }
+                delay(currentDelay)
+                yield()
+            } catch (e: CancellationException) {
+                break
+            }
         }
     }
 
