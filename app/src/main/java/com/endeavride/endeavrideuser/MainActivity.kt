@@ -16,7 +16,6 @@ import com.endeavride.endeavrideuser.databinding.ActivityMainBinding
 import com.endeavride.endeavrideuser.ui.login.LoginFragment
 import com.endeavride.endeavrideuser.ui.login.LoginViewModel
 import com.endeavride.endeavrideuser.ui.login.LoginViewModelFactory
-import com.google.android.gms.maps.MapFragment
 import dagger.hilt.android.AndroidEntryPoint
 
 //@AndroidEntryPoint

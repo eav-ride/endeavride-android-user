@@ -5,6 +5,7 @@ import com.endeavride.endeavrideuser.ui.login.LoginResult
 import com.github.kittinunf.fuel.Fuel
 import com.github.kittinunf.fuel.core.FuelError
 import com.github.kittinunf.fuel.core.FuelManager
+import com.github.kittinunf.fuel.core.Parameters
 import com.github.kittinunf.fuel.coroutines.awaitResponseResult
 import com.github.kittinunf.fuel.coroutines.awaitStringResponseResult
 import kotlinx.coroutines.CancellationException
@@ -42,8 +43,8 @@ class NetworkUtils {
             return RequestResultModel(bytes, error)
         }
 
-        suspend fun getRequest(path: String): RequestResultModel {
-            val fuelRequest = FuelManager.instance.get(path)
+        suspend fun getRequest(path: String, parameters: Parameters?): RequestResultModel {
+            val fuelRequest = FuelManager.instance.get(path, parameters)
             user?.userId?.let { fuelRequest.appendHeader("uid", it) }
             val (request, response, result) = fuelRequest.awaitStringResponseResult()
             println(request)

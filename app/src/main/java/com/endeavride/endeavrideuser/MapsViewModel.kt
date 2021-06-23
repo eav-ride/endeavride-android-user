@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.endeavride.endeavrideuser.data.MapDataSource
 import com.endeavride.endeavrideuser.data.model.Ride
 import com.endeavride.endeavrideuser.data.Result
+import com.endeavride.endeavrideuser.data.model.DriveRecord
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.libraries.places.api.model.LocationBias
 import com.google.android.libraries.places.api.model.RectangularBounds
@@ -29,8 +30,11 @@ class MapsViewModel(
     private val _mapDirectionResult = MutableLiveData<MutableList<List<LatLng>>>()
     val mapDirectionResult: LiveData<MutableList<List<LatLng>>> = _mapDirectionResult
 
-    private val _currentRide = MutableLiveData<Ride>()
-    val currentRide: LiveData<Ride> = _currentRide
+    private val _currentRide = MutableLiveData<Ride?>()
+    val currentRide: LiveData<Ride?> = _currentRide
+
+    private val _latestDriverLocation = MutableLiveData<DriveRecord>()
+    val latestDriverLocation: LiveData<DriveRecord> = _latestDriverLocation
 
     private var searchJob: Job? = null
 
@@ -43,23 +47,47 @@ class MapsViewModel(
 
     fun createRide(origin:LatLng, dest: LatLng, uid: String) {
         viewModelScope.launch {
-            val direction = "${origin.latitude},${origin.longitude};${dest.latitude},${dest.longitude}"
-            val result = dataSource.createRideRequest(direction, uid)
+            val result = dataSource.createRideRequest(
+                "${origin.latitude},${origin.longitude}",
+                "${dest.latitude},${dest.longitude}", uid)
             if (result is Result.Success) {
                 _currentRide.value = result.data
+            } else {
+                _currentRide.value = null
             }
         }
     }
 
-    fun checkIfCurrentRideAvailable(delayTime: Long = 0) {
+    fun cancelRide(rid: String) {
+        viewModelScope.launch {
+            val result = dataSource.cancelRideRequest(rid)
+            if (result is Result.Success) {
+                _currentRide.value = result.data
+            } else {
+                _currentRide.value = null
+            }
+        }
+    }
+
+    fun refreshRide(delayTime: Long = 0, showFinish: Boolean = false) {
         viewModelScope.launch {
             delay(delayTime)
-            val result = dataSource.checkIfCurrentRideAvailable()
+            val result = dataSource.checkIfCurrentRideAvailable(showFinish)
             println("#K_check current ride result: $result")
             if (result is Result.Success) {
                 _currentRide.value = result.data
             } else {
-                println("#K_current ride result error")
+                _currentRide.value = null
+            }
+        }
+    }
+
+    fun pollDriveRecord(rid: String) {
+        viewModelScope.launch {
+            val result = dataSource.pollDriveRecord(rid)
+            delay(3000)
+            if (result is Result.Success) {
+                _latestDriverLocation.value = result.data
             }
         }
     }

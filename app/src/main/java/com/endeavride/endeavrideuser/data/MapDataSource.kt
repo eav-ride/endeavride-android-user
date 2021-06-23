@@ -4,6 +4,7 @@ import android.util.Log
 import com.android.volley.Request
 import com.android.volley.Response
 import com.android.volley.toolbox.StringRequest
+import com.endeavride.endeavrideuser.MapsFragment
 import com.endeavride.endeavrideuser.NetworkUtils
 import com.endeavride.endeavrideuser.data.model.*
 import com.google.android.gms.maps.model.LatLng
@@ -18,9 +19,9 @@ class MapDataSource {
 
     private val mapsKey = "AIzaSyAxxnazPy8mIAROs-chSCrDknDvzyB3Vho"
 
-    suspend fun createRideRequest(direction: String, uid: String): Result<Ride> {
+    suspend fun createRideRequest(userLocation: String, destination: String, uid: String): Result<Ride> {
         try {
-            val result = NetworkUtils.postRequest("r", Json.encodeToString(RideRequest(direction, uid)))
+            val result = NetworkUtils.postRequest("r", Json.encodeToString(RideRequest(userLocation, destination, uid)))
 
             if (result.resData != null) {
                 val ride = Json.decodeFromString<Ride>(result.resData)
@@ -32,9 +33,9 @@ class MapDataSource {
         }
     }
 
-    suspend fun checkIfCurrentRideAvailable(): Result<Ride> {
+    suspend fun checkIfCurrentRideAvailable(showFinish: Boolean): Result<Ride> {
         try {
-            val result = NetworkUtils.getRequest("r")
+            val result = NetworkUtils.getRequest("r", listOf("showfinish" to showFinish))
             if (result.resData != null) {
                 val ride = Json.decodeFromString<Ride>(result.resData)
                 return Result.Success(ride)
@@ -43,10 +44,6 @@ class MapDataSource {
         } catch (e: Throwable) {
             return Result.Error(IOException("check in progress (current) ride failed $e", e))
         }
-    }
-
-    fun getRideRequest(origin: LatLng, dest: LatLng) {
-
     }
 
     suspend fun getDirection(origin: LatLng, dest: LatLng): MutableList<List<LatLng>> {
@@ -69,5 +66,34 @@ class MapDataSource {
             path.add(PolyUtil.decode(points))
         }
         return path
+    }
+
+    suspend fun cancelRideRequest(rid: String): Result<Ride> {
+        try {
+            val result = NetworkUtils.postRequest("r/$rid", Json.encodeToString(mapOf("status" to MapsFragment.OrderStatus.CANCELED.value)))
+
+            if (result.resData != null) {
+                val ride = Json.decodeFromString<Ride>(result.resData)
+                return Result.Success(ride)
+            }
+            return Result.Error(IOException(result.error))
+        } catch (e: Throwable) {
+            return Result.Error(IOException("cancel ride failed $e", e))
+        }
+    }
+
+    // drive record
+    suspend fun pollDriveRecord(rid: String): Result<DriveRecord> {
+        try {
+            val result = NetworkUtils.getRequest("dr/$rid")
+
+            if (result.resData != null) {
+                val ride = Json.decodeFromString<DriveRecord>(result.resData)
+                return Result.Success(ride)
+            }
+            return Result.Error(IOException(result.error))
+        } catch (e: Throwable) {
+            return Result.Error(IOException("poll drive record failure with error: $e", e))
+        }
     }
 }

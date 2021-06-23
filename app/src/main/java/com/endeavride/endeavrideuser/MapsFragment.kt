@@ -10,16 +10,14 @@ import android.location.Location
 import android.os.Build
 import androidx.fragment.app.Fragment
 import android.os.Bundle
+import android.os.Looper
 import android.util.Log
 import android.view.*
-import android.widget.ProgressBar
-import android.widget.SearchView
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.app.ActivityCompat.OnRequestPermissionsResultCallback
-import androidx.fragment.app.viewModels
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import com.endeavride.endeavrideuser.PermissionUtils.isPermissionGranted
@@ -27,7 +25,6 @@ import com.endeavride.endeavrideuser.PermissionUtils.requestPermission
 import com.endeavride.endeavrideuser.data.model.Ride
 import com.endeavride.endeavrideuser.databinding.FragmentMapsBinding
 import com.endeavride.endeavrideuser.ui.login.LoginViewModel
-import com.endeavride.endeavrideuser.ui.login.LoginViewModelFactory
 import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.*
 import com.google.android.gms.maps.*
@@ -35,7 +32,6 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.PolylineOptions
-import dagger.hilt.android.AndroidEntryPoint
 import java.io.IOException
 
 //@AndroidEntryPoint
@@ -50,6 +46,8 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         const val LOCATION_PERMISSION_REQUEST_CODE = 1
         private const val REQUEST_CHECK_SETTINGS = 2
         private const val PLACE_PICKER_REQUEST = 3
+
+        private const val TAG = "MapsFragment"
     }
 
     enum class OrderStatus(val value: Int)
@@ -89,10 +87,14 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
     private val binding get() = _binding!!
 
     private var dest: LatLng? = null
+    private var customer: LatLng? = null
     private var needDirection = false
+    private var rid: String? = null
 
     private var status: OrderStatus = OrderStatus.DEFAULT
-    private var isAutoPollingEnabled = true
+    private var isAutoPollingEnabled = false
+    private var isPostingDriveRecord = false
+    private var driverLocation: Marker? = null
 
     private val callback = OnMapReadyCallback { googleMap ->
         /**
@@ -111,7 +113,7 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         }
         enableMyLocation()
 
-        viewModel.checkIfCurrentRideAvailable()
+        viewModel.refreshRide()
     }
 
     override fun onCreateView(
@@ -135,6 +137,8 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         val mapFragment = childFragmentManager.findFragmentById(R.id.map) as SupportMapFragment?
         mapFragment?.getMapAsync(callback)
 
+        reloadData()
+
 //        initRecyclerView()
 //        viewModel.events.observe(viewLifecycleOwner, Observer { event ->
 //            when(event) {
@@ -152,6 +156,19 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
 //            Log.d("Map", "#K_$event")
 //        })
 
+        viewModel.latestDriverLocation.observe(viewLifecycleOwner,
+            Observer { driver ->
+                val location = Utils.decodeLocationString(driver.driver_location)
+                if (driverLocation != null) {
+                    driverLocation?.remove()
+                }
+                driverLocation = location?.let { placeMarkerOnMap(it) }
+
+                if (isPostingDriveRecord) {
+                    rid?.let { viewModel.pollDriveRecord(it) }
+                }
+            })
+
         viewModel.mapDirectionResult.observe(viewLifecycleOwner,
             Observer { path ->
                 for (i in 0 until path.size) {
@@ -162,28 +179,18 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         viewModel.currentRide.observe(viewLifecycleOwner,
             Observer { ride ->
                 println("#K_current ride $ride")
+                this.rid = ride?.rid
                 setStatus(ride)
                 ride ?: return@Observer
-                val dest = Utils.decodeRideDirection(ride.direction)
-                if (dest != null && this.dest != dest) {
+                val dest = Utils.decodeLocationString(ride.destination)
+                val customer = Utils.decodeLocationString(ride.user_location)
+                if (dest != null && customer != null && this.customer != customer) {
                     placeMarkerOnMap(dest)
                     this.dest = dest
+                    this.customer = customer
                     requestDirection()
                 }
             })
-        
-        binding.requestDriverButton.setOnClickListener {
-            Log.d("Debug", "#K_send driver request with points $lastLocation and $dest")
-            dest?.let { it1 -> NetworkUtils.user?.userId?.let { it2 ->
-                lastLocation?.let { it3 -> LatLng(it3.latitude, it3.longitude) }?.let { it4 ->
-                    viewModel.createRide(
-                        it4, it1,
-                        it2
-                    )
-                }
-            } }
-//            Toast.makeText(requireContext(), "send driver request with points $lastLocation and $dest", Toast.LENGTH_SHORT).show()
-        }
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity())
 
@@ -211,35 +218,94 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
     }
 
     private fun reloadData() {
-        if (status == OrderStatus.DEFAULT) {
-            binding.requestDriverButton.text = "Request Driver"
-            binding.requestDriverButton.isClickable = true
-            binding.clearButton.text = "Clear"
-            binding.clearButton.isEnabled = true
-
-            binding.clearButton.setOnClickListener {
-                map.clear()
-                dest = null
-            }
-        } else if (status == OrderStatus.UNASSIGNED || status == OrderStatus.ASSIGNING) {
-            binding.requestDriverButton.text = "Waiting Driver..."
+        if (status == OrderStatus.UNASSIGNED || status == OrderStatus.ASSIGNING) {
+            binding.requestDriverButton.text = "Waiting available drivers..."
             binding.requestDriverButton.isClickable = false
             binding.clearButton.text = "Cancel"
             binding.clearButton.isEnabled = true
 
             binding.clearButton.setOnClickListener {
                 // show a popup to confirm if user want to cancel request, if confirmed, stop auto refresh, post cancel ride request
-                isAutoPollingEnabled = false
+                // TODO: send cancel task request
             }
 
-            if (isAutoPollingEnabled) {
-                viewModel.checkIfCurrentRideAvailable(3000)
-            }
+            viewModel.refreshRide(3000)
         } else if (status == OrderStatus.PICKING) {
-            binding.requestDriverButton.text = "Waiting Driver..."
+            binding.requestDriverButton.text = "Ride received, waiting for pick up..."
             binding.requestDriverButton.isClickable = false
             binding.clearButton.text = "Cancel"
             binding.clearButton.isEnabled = false
+
+            // start updating GPS to server
+            if (!isPostingDriveRecord) {
+                Log.d(TAG, "Start polling GPS Records")
+                isPostingDriveRecord = true
+                rid?.let { viewModel.pollDriveRecord(it) }
+            }
+
+            viewModel.refreshRide(5000)
+        } else if (status == OrderStatus.ARRIVED_USER_LOCATION) {
+            binding.requestDriverButton.text = "Drive arrived!"
+            binding.requestDriverButton.isClickable = false
+            binding.clearButton.text = "Cancel"
+            binding.clearButton.isEnabled = false
+
+            isPostingDriveRecord = false
+
+            viewModel.refreshRide(5000)
+        } else if (status == OrderStatus.STARTED) {
+            binding.requestDriverButton.text = "Sit tight, heading to your destination!"
+            binding.requestDriverButton.isClickable = false
+            binding.clearButton.text = "Cancel"
+            binding.clearButton.isEnabled = false
+
+            // start updating GPS to server
+            if (!isPostingDriveRecord) {
+                Log.d(TAG, "Start polling GPS Records and start updating user location as well")
+                isPostingDriveRecord = true
+                try {
+                    fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
+
+                    rid?.let { viewModel.pollDriveRecord(it) }
+                } catch (unlikely: SecurityException) {
+                    Log.e(TAG, "Lost location permissions. Couldn't remove updates. $unlikely")
+                }
+            }
+
+            viewModel.refreshRide(3000, showFinish = true)
+        } else if (status == OrderStatus.FINISHED) {
+            Toast.makeText(requireContext(), "You've arrived!!", Toast.LENGTH_SHORT).show()
+            map.clear()
+            defaultStatusActions()
+        } else {
+            defaultStatusActions()
+        }
+    }
+
+    private fun defaultStatusActions() {
+        binding.requestDriverButton.text = "Request Driver"
+        binding.requestDriverButton.isClickable = true
+        binding.clearButton.text = "Clear"
+        binding.clearButton.isEnabled = true
+        isPostingDriveRecord = false
+        isAutoPollingEnabled = false
+
+        binding.clearButton.setOnClickListener {
+            map.clear()
+            dest = null
+        }
+
+        binding.requestDriverButton.setOnClickListener {
+            Log.d(TAG, "#K_send driver request with points $lastLocation and $dest")
+            isAutoPollingEnabled = true
+            dest?.let { it1 -> NetworkUtils.user?.userId?.let { it2 ->
+                lastLocation?.let { it3 -> LatLng(it3.latitude, it3.longitude) }?.let { it4 ->
+                    viewModel.createRide(
+                        it4, it1,
+                        it2
+                    )
+                }
+            } }
         }
     }
 
@@ -248,10 +314,11 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
             needDirection = true
             return
         }
-        dest?.let { it1 -> lastLocation?.let { LatLng(it.latitude, it.longitude) }?.let {
+        val target = LatLng(customer?.latitude ?: lastLocation!!.latitude, customer?.longitude ?: lastLocation!!.longitude)
+        dest?.let {
             viewModel.getDirection(
-                it, it1)
-        } }
+                target, it)
+        }
     }
 
     override fun onResume() {
@@ -345,15 +412,15 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         }
     }
 
-    private fun placeMarkerOnMap(location: LatLng) {
+    private fun placeMarkerOnMap(location: LatLng): Marker? {
         val markerOptions = MarkerOptions().position(location)
 
         val titleStr = getAddress(location)  // add these two lines
         markerOptions.title(titleStr)
 
-        map.addMarker(markerOptions)
-
         dest = location
+
+        return map.addMarker(markerOptions)
     }
 
     override fun onMarkerClick(p0: Marker): Boolean {

@@ -24,6 +24,7 @@ import androidx.navigation.fragment.findNavController
 import com.endeavride.endeavrideuser.databinding.FragmentLoginBinding
 
 import com.endeavride.endeavrideuser.R
+import com.endeavride.endeavrideuser.Utils
 
 class LoginFragment : Fragment() {
     companion object {
@@ -65,6 +66,15 @@ class LoginFragment : Fragment() {
         val registerButton = binding.register
         val loadingProgressBar = binding.loading
 
+        activity?.let { it1 ->
+            usernameEditText.setText(Utils.getStringPref(it1, "Username"))
+            passwordEditText.setText(Utils.getStringPref(it1, "Password"))
+            if (usernameEditText.text != null && passwordEditText.text != null) {
+                loginButton.isEnabled = true
+                registerButton.isEnabled = true
+            }
+        }
+
         loginViewModel.loginFormState.observe(viewLifecycleOwner,
             Observer { loginFormState ->
                 if (loginFormState == null) {
@@ -88,6 +98,10 @@ class LoginFragment : Fragment() {
                     showLoginFailed(it)
                 }
                 loginResult.success?.let {
+                    activity?.let { it1 ->
+                        Utils.saveStringPref(it1, usernameEditText.text.toString(), "Username")
+                        Utils.saveStringPref(it1, passwordEditText.text.toString(), "Password")
+                    }
                     updateUiWithUser(it)
                 }
             })
@@ -160,7 +174,7 @@ class LoginFragment : Fragment() {
     private fun showLoginFailed(@StringRes errorString: Int) {
         val appContext = context?.applicationContext ?: return
         Log.d("Msg", "#K_Login failed! $errorString")
-        Toast.makeText(appContext, "Login failed!", Toast.LENGTH_LONG).show()
+        Toast.makeText(appContext, errorString, Toast.LENGTH_LONG).show()
     }
 
     override fun onDestroyView() {
