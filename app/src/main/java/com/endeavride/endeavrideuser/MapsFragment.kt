@@ -8,7 +8,6 @@ import android.location.Address
 import android.location.Geocoder
 import android.location.Location
 import android.os.Build
-import androidx.fragment.app.Fragment
 import android.os.Bundle
 import android.os.Looper
 import android.util.Log
@@ -16,8 +15,9 @@ import android.view.*
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import androidx.core.app.ActivityCompat.OnRequestPermissionsResultCallback
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import com.endeavride.endeavrideuser.PermissionUtils.isPermissionGranted
@@ -26,13 +26,18 @@ import com.endeavride.endeavrideuser.data.model.Ride
 import com.endeavride.endeavrideuser.databinding.FragmentMapsBinding
 import com.endeavride.endeavrideuser.ui.login.LoginViewModel
 import com.google.android.gms.common.api.ResolvableApiException
+import com.google.android.gms.common.api.Status
 import com.google.android.gms.location.*
 import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.PolylineOptions
+import com.google.android.libraries.places.api.model.Place
+import com.google.android.libraries.places.widget.AutocompleteSupportFragment
+import com.google.android.libraries.places.widget.listener.PlaceSelectionListener
 import java.io.IOException
+
 
 //@AndroidEntryPoint
 class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermissionsResultCallback {
@@ -191,6 +196,24 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
                     requestDirection()
                 }
             })
+
+        val autocompleteFragment = childFragmentManager.findFragmentById(R.id.autocomplete_fragment) as AutocompleteSupportFragment
+
+        // Specify the types of place data to return.
+        autocompleteFragment.setPlaceFields(listOf(Place.Field.ID, Place.Field.NAME))
+
+        // Set up a PlaceSelectionListener to handle the response.
+        autocompleteFragment.setOnPlaceSelectedListener(object : PlaceSelectionListener {
+            override fun onPlaceSelected(place: Place) {
+                // TODO: Get info about the selected place.
+                Log.i(TAG, "Place: ${place.name}, ${place.id}")
+            }
+
+            override fun onError(status: Status) {
+                // TODO: Handle the error.
+                Log.i(TAG, "An error occurred: $status")
+            }
+        })
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity())
 

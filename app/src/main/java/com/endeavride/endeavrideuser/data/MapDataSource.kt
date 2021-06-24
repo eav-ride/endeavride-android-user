@@ -85,7 +85,7 @@ class MapDataSource {
     // drive record
     suspend fun pollDriveRecord(rid: String): Result<DriveRecord> {
         try {
-            val result = NetworkUtils.getRequest("dr/$rid")
+            val result = NetworkUtils.getRequest("dr/$rid", null)
 
             if (result.resData != null) {
                 val ride = Json.decodeFromString<DriveRecord>(result.resData)
