@@ -144,23 +144,6 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
 
         reloadData()
 
-//        initRecyclerView()
-//        viewModel.events.observe(viewLifecycleOwner, Observer { event ->
-//            when(event) {
-//                is PlacesSearchEventLoading -> {
-//                    progressBar.isIndeterminate = true
-//                }
-//                is PlacesSearchEventError -> {
-//                    progressBar.isIndeterminate = false
-//                }
-//                is PlacesSearchEventFound -> {
-//                    progressBar.isIndeterminate = false
-//                    adapter.setPredictions(event.places)
-//                }
-//            }
-//            Log.d("Map", "#K_$event")
-//        })
-
         viewModel.latestDriverLocation.observe(viewLifecycleOwner,
             Observer { driver ->
                 val location = Utils.decodeLocationString(driver.driver_location)
@@ -268,7 +251,7 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
 
             viewModel.refreshRide(5000)
         } else if (status == OrderStatus.ARRIVED_USER_LOCATION) {
-            binding.requestDriverButton.text = "Drive arrived!"
+            binding.requestDriverButton.text = "Driver arrived!"
             binding.requestDriverButton.isClickable = false
             binding.clearButton.text = "Cancel"
             binding.clearButton.isEnabled = false

@@ -88,8 +88,8 @@ class MapDataSource {
             val result = NetworkUtils.getRequest("dr/$rid", null)
 
             if (result.resData != null) {
-                val ride = Json.decodeFromString<DriveRecord>(result.resData)
-                return Result.Success(ride)
+                val record = Json.decodeFromString<DriveRecord>(result.resData)
+                return Result.Success(record)
             }
             return Result.Error(IOException(result.error))
         } catch (e: Throwable) {
