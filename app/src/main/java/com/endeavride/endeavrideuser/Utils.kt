@@ -12,6 +12,10 @@ object Utils {
         return LatLng(point[0].toDouble(), point[1].toDouble())
     }
 
+    fun encodeLocationString(location: LatLng):String {
+        return "${location.latitude},${location.longitude}"
+    }
+
     /**
      * Provides access to SharedPreferences for location to Activities and Services.
      */

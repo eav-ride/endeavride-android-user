@@ -38,7 +38,7 @@
     <View
         android:id="@+id/view"
         android:layout_width="0dp"
-        android:layout_height="130dp"
+        android:layout_height="140dp"
         android:layout_alignParentStart="true"
         android:layout_alignParentEnd="true"
         android:layout_marginStart="15dp"
@@ -61,15 +61,15 @@
         android:layout_marginStart="10dp"
         android:layout_marginEnd="10dp"
         android:layout_marginBottom="12dp"
-        android:text="Request Driver"
+        android:text="Ride Service"
         app:layout_constraintBottom_toBottomOf="@+id/view"
         app:layout_constraintEnd_toEndOf="@+id/view"
         app:layout_constraintHorizontal_bias="0.75"
-        app:layout_constraintStart_toEndOf="@+id/clear_button"
+        app:layout_constraintStart_toEndOf="@+id/home_service_button"
         android:textAllCaps="false" />
 
     <Button
-        android:id="@+id/clear_button"
+        android:id="@+id/home_service_button"
         app:layout_constraintWidth_percent="0.4"
         android:layout_width="0dp"
         android:layout_height="54dp"
@@ -77,21 +77,51 @@
         android:layout_marginStart="10dp"
         android:layout_marginTop="15dp"
         android:layout_marginBottom="15dp"
-        android:text="Clear Map"
+        android:text="Home Service"
         app:layout_constraintBottom_toBottomOf="@+id/request_driver_button"
-        app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintStart_toStartOf="@+id/view"
         app:layout_constraintTop_toTopOf="@+id/request_driver_button"
         android:textAllCaps="false" />
 
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/autocomplete_fragment"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="15dp"
+        android:layout_marginBottom="15dp"
         android:name="com.google.android.libraries.places.widget.AutocompleteSupportFragment"
         app:layout_constraintStart_toStartOf="@+id/view"
-        app:layout_constraintEnd_toEndOf="@+id/view"
         app:layout_constraintTop_toTopOf="@+id/view" />
+
+    <Button
+        android:id="@+id/clear_button"
+        app:layout_constraintWidth_percent="0.4"
+        android:layout_width="wrap_content"
+        android:layout_height="54dp"
+        android:layout_alignParentStart="true"
+        android:layout_marginEnd="10dp"
+        android:layout_marginTop="15dp"
+        android:text="Clear Map"
+        app:layout_constraintEnd_toEndOf="@+id/view"
+        app:layout_constraintTop_toTopOf="@+id/view"
+        android:textAllCaps="false" />
+
+    <Button
+        android:id="@+id/action_button"
+        android:layout_width="0dp"
+        android:layout_height="54dp"
+        android:layout_alignParentStart="true"
+        android:layout_marginStart="10dp"
+        android:layout_marginEnd="10dp"
+        android:layout_marginTop="15dp"
+        android:layout_marginBottom="15dp"
+        android:text="Home Service"
+        app:layout_constraintBottom_toBottomOf="@+id/view"
+        app:layout_constraintStart_toStartOf="@+id/view"
+        app:layout_constraintEnd_toEndOf="@+id/view"
+        app:layout_constraintEnd_toStartOf="@+id/clear_button"
+        app:layout_constraintTop_toTopOf="@+id/view"
+        android:textAllCaps="false" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,6 +1,8 @@
 package com.endeavride.endeavrideuser
 
 import android.Manifest
+import android.app.AlertDialog
+import android.content.DialogInterface
 import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -12,12 +14,16 @@ import android.os.Bundle
 import android.os.Looper
 import android.util.Log
 import android.view.*
+import android.widget.Button
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.app.ActivityCompat.OnRequestPermissionsResultCallback
 import androidx.core.content.ContextCompat
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentContainerView
+import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import com.endeavride.endeavrideuser.PermissionUtils.isPermissionGranted
@@ -55,8 +61,7 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         private const val TAG = "MapsFragment"
     }
 
-    enum class OrderStatus(val value: Int)
-    {
+    enum class OrderStatus(val value: Int) {
         DEFAULT(-1),
         UNASSIGNED(0),
         ASSIGNING(1),
@@ -68,6 +73,16 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
 
         companion object {
             private val VALUES = values()
+            fun from(value: Int) = VALUES.firstOrNull { it.value == value }
+        }
+    }
+
+    enum class OrderType(val value: Int) {
+        RIDE_SERVICE(0),
+        HOME_SERVICE(1);
+
+        companion object {
+            private val VALUES = OrderType.values()
             fun from(value: Int) = VALUES.firstOrNull { it.value == value }
         }
     }
@@ -90,6 +105,12 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
     // This property is only valid between onCreateView and
     // onDestroyView.
     private val binding get() = _binding!!
+    private lateinit var homeServiceButton: Button
+    private lateinit var rideServiceButton: Button
+    private lateinit var clearButton: Button
+    private lateinit var actionButton: Button
+    private lateinit var autocompleteFragment: FragmentContainerView
+    private lateinit var buttonContainer: View
 
     private var dest: LatLng? = null
     private var customer: LatLng? = null
@@ -97,6 +118,7 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
     private var rid: String? = null
 
     private var status: OrderStatus = OrderStatus.DEFAULT
+    private var type: OrderType = OrderType.RIDE_SERVICE
     private var isAutoPollingEnabled = false
     private var isPostingDriveRecord = false
     private var driverLocation: Marker? = null
@@ -114,7 +136,8 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         map = googleMap
         map.setOnMapLongClickListener {
             map.clear()
-            placeMarkerOnMap(it)
+            placeDestinationOnMap(it)
+
         }
         enableMyLocation()
 
@@ -127,9 +150,12 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         savedInstanceState: Bundle?
     ): View? {
         _binding = FragmentMapsBinding.inflate(inflater, container, false)
-//        progressBar = binding.progressBar
-//        binding.toolbar.inflateMenu(R.menu.search_place_menu)
-//        setHasOptionsMenu(true)
+        homeServiceButton = binding.homeServiceButton
+        rideServiceButton = binding.requestDriverButton
+        clearButton = binding.clearButton
+        actionButton = binding.actionButton
+        autocompleteFragment = binding.autocompleteFragment
+        buttonContainer = binding.view
         return binding.root
     }
 
@@ -168,16 +194,20 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
             Observer { ride ->
                 println("#K_current ride $ride")
                 this.rid = ride?.rid
-                setStatus(ride)
-                ride ?: return@Observer
-                val dest = Utils.decodeLocationString(ride.destination)
-                val customer = Utils.decodeLocationString(ride.user_location)
-                if (dest != null && customer != null && this.customer != customer) {
-                    placeMarkerOnMap(dest)
-                    this.dest = dest
-                    this.customer = customer
-                    requestDirection()
+                if (ride == null) {
+                    dest = null
+                    customer = null
+                    setStatus(ride)
+                    return@Observer
                 }
+                type = OrderType.from(ride.type) ?: OrderType.RIDE_SERVICE
+                dest = Utils.decodeLocationString(ride.destination)
+                customer = if (ride.user_location == null) {
+                    null
+                } else {
+                    Utils.decodeLocationString(ride.user_location)
+                }
+                setStatus(ride)
             })
 
         val autocompleteFragment = childFragmentManager.findFragmentById(R.id.autocomplete_fragment) as AutocompleteSupportFragment
@@ -203,14 +233,9 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(p0: LocationResult) {
                 super.onLocationResult(p0)
-
                 lastLocation = p0.lastLocation
-//                placeMarkerOnMap(LatLng(lastLocation.latitude, lastLocation.longitude))
-
-                if (needDirection) {
-                    needDirection = false
-                    requestDirection()
-                }
+                val currentLatLng = LatLng(p0.lastLocation.latitude, p0.lastLocation.longitude)
+                map.moveCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 12f))
             }
         }
         createLocationRequest()
@@ -223,24 +248,53 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         reloadData()
     }
 
+    private fun showActionButton() {
+        val params = buttonContainer.layoutParams
+        params.height = getPixelFromDp(84)
+        buttonContainer.layoutParams = params
+        actionButton.isVisible = true
+        homeServiceButton.isVisible = false
+        rideServiceButton.isVisible = false
+        autocompleteFragment.isVisible = false
+    }
+
     private fun reloadData() {
         if (status == OrderStatus.UNASSIGNED || status == OrderStatus.ASSIGNING) {
-            binding.requestDriverButton.text = "Waiting available drivers..."
-            binding.requestDriverButton.isClickable = false
-            binding.clearButton.text = "Cancel"
-            binding.clearButton.isEnabled = true
+            showActionButton()
+            actionButton.text = "Waiting available drivers..."
+            clearButton.text = "Cancel"
+            clearButton.isEnabled = true
 
-            binding.clearButton.setOnClickListener {
+            clearButton.setOnClickListener {
                 // show a popup to confirm if user want to cancel request, if confirmed, stop auto refresh, post cancel ride request
-                // TODO: send cancel task request
+                val alert = activity?.let {
+                    // Use the Builder class for convenient dialog construction
+                    val builder = AlertDialog.Builder(it)
+                    builder.setMessage("Are you sure to cancel the ride?")
+                        .setPositiveButton("No",
+                            DialogInterface.OnClickListener { dialog, id ->
+                                // FIRE ZE MISSILES!
+                            })
+                        .setNegativeButton("Yes, cancel it",
+                            DialogInterface.OnClickListener { dialog, id ->
+                                // User cancelled the dialog
+                                // TODO: send cancel task request
+                                rid?.let { it1 -> viewModel.cancelRide(it1) }
+                                map.clear()
+                            })
+                    // Create the AlertDialog object and return it
+                    builder.create()
+                } ?: throw IllegalStateException("Activity cannot be null")
+                alert.show()
             }
+            requestDirectionIfNeeded()
 
             viewModel.refreshRide(3000)
         } else if (status == OrderStatus.PICKING) {
-            binding.requestDriverButton.text = "Ride received, waiting for pick up..."
-            binding.requestDriverButton.isClickable = false
-            binding.clearButton.text = "Cancel"
-            binding.clearButton.isEnabled = false
+            showActionButton()
+            actionButton.text = "Ride received, waiting for pick up..."
+            actionButton.isClickable = false
+            clearButton.isEnabled = false
 
             // start updating GPS to server
             if (!isPostingDriveRecord) {
@@ -248,22 +302,28 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
                 isPostingDriveRecord = true
                 rid?.let { viewModel.pollDriveRecord(it) }
             }
+            requestDirectionIfNeeded()
 
-            viewModel.refreshRide(5000)
+            viewModel.refreshRide(10000)
         } else if (status == OrderStatus.ARRIVED_USER_LOCATION) {
-            binding.requestDriverButton.text = "Driver arrived!"
-            binding.requestDriverButton.isClickable = false
-            binding.clearButton.text = "Cancel"
-            binding.clearButton.isEnabled = false
+            showActionButton()
+            actionButton.text = "Driver arrived!"
+            actionButton.isClickable = false
+            clearButton.isEnabled = false
 
             isPostingDriveRecord = false
+            requestDirectionIfNeeded()
 
-            viewModel.refreshRide(5000)
+            viewModel.refreshRide(10000)
         } else if (status == OrderStatus.STARTED) {
-            binding.requestDriverButton.text = "Sit tight, heading to your destination!"
-            binding.requestDriverButton.isClickable = false
-            binding.clearButton.text = "Cancel"
-            binding.clearButton.isEnabled = false
+            showActionButton()
+            actionButton.text = if (type == OrderType.RIDE_SERVICE) {
+                "Sit tight, heading to your destination!"
+            } else {
+                "Driver is on the way!"
+            }
+            actionButton.isClickable = false
+            clearButton.isEnabled = false
 
             // start updating GPS to server
             if (!isPostingDriveRecord) {
@@ -277,10 +337,17 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
                     Log.e(TAG, "Lost location permissions. Couldn't remove updates. $unlikely")
                 }
             }
+            requestDirectionIfNeeded()
 
             viewModel.refreshRide(3000, showFinish = true)
         } else if (status == OrderStatus.FINISHED) {
-            Toast.makeText(requireContext(), "You've arrived!!", Toast.LENGTH_SHORT).show()
+            val text = if (type == OrderType.RIDE_SERVICE) {
+                "You've arrived!!"
+            } else {
+                "Driver has arrived!!"
+            }
+            dest = null
+            Toast.makeText(requireContext(), text, Toast.LENGTH_SHORT).show()
             map.clear()
             defaultStatusActions()
         } else {
@@ -289,26 +356,54 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
     }
 
     private fun defaultStatusActions() {
-        binding.requestDriverButton.text = "Request Driver"
-        binding.requestDriverButton.isClickable = true
-        binding.clearButton.text = "Clear"
-        binding.clearButton.isEnabled = true
+        // UI updates
+        val params = buttonContainer.layoutParams
+        params.height = getPixelFromDp(140)
+        buttonContainer.layoutParams = params
+        rideServiceButton.text = "Ride Service"
+        rideServiceButton.isVisible = true
+        homeServiceButton.text = "Home Service"
+        homeServiceButton.isVisible = true
+        clearButton.text = "Clear"
+        clearButton.isEnabled = true
+        autocompleteFragment.isVisible = true
+        actionButton.isVisible = false
+
+        // logic updates
         isPostingDriveRecord = false
         isAutoPollingEnabled = false
+        needDirection = true
 
-        binding.clearButton.setOnClickListener {
+        if (dest == null) {
+            rideServiceButton.isEnabled = false
+            homeServiceButton.isEnabled = true
+        } else {
+            rideServiceButton.isEnabled = true
+            homeServiceButton.isEnabled = false
+        }
+
+        clearButton.setOnClickListener {
             map.clear()
             dest = null
         }
 
-        binding.requestDriverButton.setOnClickListener {
+        homeServiceButton.setOnClickListener {
+            Log.d(TAG, "Sending home service button")
+            isAutoPollingEnabled = true
+            NetworkUtils.user?.userId?.let { it2 ->
+                lastLocation?.let { it3 -> LatLng(it3.latitude, it3.longitude) }?.let { it4 ->
+                    viewModel.createRide(OrderType.HOME_SERVICE.value, null, it4, it2
+                    )
+                }
+            }
+        }
+
+        rideServiceButton.setOnClickListener {
             Log.d(TAG, "#K_send driver request with points $lastLocation and $dest")
             isAutoPollingEnabled = true
             dest?.let { it1 -> NetworkUtils.user?.userId?.let { it2 ->
                 lastLocation?.let { it3 -> LatLng(it3.latitude, it3.longitude) }?.let { it4 ->
-                    viewModel.createRide(
-                        it4, it1,
-                        it2
+                    viewModel.createRide(OrderType.RIDE_SERVICE.value, it4, it1, it2
                     )
                 }
             } }
@@ -322,6 +417,8 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         }
         val target = LatLng(customer?.latitude ?: lastLocation!!.latitude, customer?.longitude ?: lastLocation!!.longitude)
         dest?.let {
+            needDirection = false
+            placeDestinationOnMap(it)
             viewModel.getDirection(
                 target, it)
         }
@@ -341,48 +438,21 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         _binding = null
     }
 
-    // MARK: search place by address
-//    override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
-//        super.onCreateOptionsMenu(menu, inflater)
-//        Log.d("Map", "#K_onCreateOptionsMenu")
-//        val searchView = menu.findItem(R.id.search).actionView as SearchView
-//        searchView.apply {
-//            queryHint = getString(R.string.search_a_place)
-//            isIconifiedByDefault = false
-//            isFocusable = true
-//            isIconified = false
-//            requestFocusFromTouch()
-//            setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-//                override fun onQueryTextSubmit(query: String): Boolean {
-//                    return false
-//                }
-//
-//                override fun onQueryTextChange(newText: String): Boolean {
-//                    viewModel.onSearchQueryChanged(newText)
-//                    return true
-//                }
-//            })
-//        }
-//    }
+    private fun getPixelFromDp(dps: Int): Int {
+        val scale: Float? = context?.resources?.displayMetrics?.density
+        return (dps * scale!! + 0.5f).toInt()
+    }
 
-//    private fun initRecyclerView() {
-//        val linearLayoutManager = LinearLayoutManager(this)
-//        findViewById<RecyclerView>(R.id.recycler_view).apply {
-//            layoutManager = linearLayoutManager
-////            adapter = this@PlacesSearchDemoActivity.adapter
-//            addItemDecoration(
-//                DividerItemDecoration(
-//                    this@PlacesSearchDemoActivity,
-//                    linearLayoutManager.orientation
-//                )
-//            )
-//        }
-//    }
+    private fun requestDirectionIfNeeded() {
+        if (dest != null && customer != null && needDirection) {
+            requestDirection()
+        }
+    }
 
     /**
      * Enables the My Location layer if the fine location permission has been granted.
      */
-    private fun enableMyLocation() {
+    private fun enableMyLocation(animated: Boolean = false) {
         if (!::map.isInitialized) return
         if (context == null) {
             return
@@ -406,16 +476,20 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
             if (location != null) {
                 lastLocation = location
                 val currentLatLng = LatLng(location.latitude, location.longitude)
-//                placeMarkerOnMap(currentLatLng)
                 map.moveCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 12f))
-//                map.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 12f))
-
-                if (needDirection) {
-                    needDirection = false
-                    requestDirection()
+                if (animated) {
+                    map.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 12f))
                 }
+
+                requestDirectionIfNeeded()
             }
         }
+    }
+
+    private fun placeDestinationOnMap(location: LatLng): Marker? {
+        dest = location
+        reloadData()
+        return placeMarkerOnMap(location)
     }
 
     private fun placeMarkerOnMap(location: LatLng): Marker? {
@@ -423,8 +497,6 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
 
         val titleStr = getAddress(location)  // add these two lines
         markerOptions.title(titleStr)
-
-        dest = location
 
         return map.addMarker(markerOptions)
     }

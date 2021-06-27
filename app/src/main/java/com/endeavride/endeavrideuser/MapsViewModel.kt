@@ -9,6 +9,7 @@ import com.endeavride.endeavrideuser.data.MapDataSource
 import com.endeavride.endeavrideuser.data.model.Ride
 import com.endeavride.endeavrideuser.data.Result
 import com.endeavride.endeavrideuser.data.model.DriveRecord
+import com.endeavride.endeavrideuser.data.model.RideRequest
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.libraries.places.api.model.LocationBias
 import com.google.android.libraries.places.api.model.RectangularBounds
@@ -45,11 +46,15 @@ class MapsViewModel(
         }
     }
 
-    fun createRide(origin:LatLng, dest: LatLng, uid: String) {
+    fun createRide(type: Int, origin:LatLng?, destination: LatLng, uid: String) {
         viewModelScope.launch {
-            val result = dataSource.createRideRequest(
-                "${origin.latitude},${origin.longitude}",
-                "${dest.latitude},${dest.longitude}", uid)
+            val userLocation = if (origin != null) {
+                Utils.encodeLocationString(origin)
+            } else {
+                ""
+            }
+            val rideRequest = RideRequest(type, userLocation, Utils.encodeLocationString(destination), uid)
+            val result = dataSource.createRideRequest(rideRequest)
             if (result is Result.Success) {
                 _currentRide.value = result.data
             } else {

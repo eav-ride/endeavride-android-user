@@ -19,16 +19,18 @@ class MapDataSource {
 
     private val mapsKey = "AIzaSyAxxnazPy8mIAROs-chSCrDknDvzyB3Vho"
 
-    suspend fun createRideRequest(userLocation: String, destination: String, uid: String): Result<Ride> {
+    suspend fun createRideRequest(rideRequest: RideRequest): Result<Ride> {
         try {
-            val result = NetworkUtils.postRequest("r", Json.encodeToString(RideRequest(userLocation, destination, uid)))
+            val result = NetworkUtils.postRequest("r", Json.encodeToString(rideRequest))
 
             if (result.resData != null) {
                 val ride = Json.decodeFromString<Ride>(result.resData)
                 return Result.Success(ride)
             }
+            Log.e("MapDataSource", "[createRideRequest] decode error: " + result.error.toString())
             return Result.Error(IOException(result.error))
         } catch (e: Throwable) {
+            Log.e("MapDataSource", "[createRideRequest] network error: $e")
             return Result.Error(IOException("create ride failed $e", e))
         }
     }
@@ -40,8 +42,10 @@ class MapDataSource {
                 val ride = Json.decodeFromString<Ride>(result.resData)
                 return Result.Success(ride)
             }
+            Log.e("MapDataSource", "[checkIfCurrentRideAvailable] decode error: " + result.error.toString())
             return Result.Error(IOException(result.error))
         } catch (e: Throwable) {
+            Log.e("MapDataSource", "[checkIfCurrentRideAvailable] network error: $e")
             return Result.Error(IOException("check in progress (current) ride failed $e", e))
         }
     }
@@ -76,8 +80,10 @@ class MapDataSource {
                 val ride = Json.decodeFromString<Ride>(result.resData)
                 return Result.Success(ride)
             }
+            Log.e("MapDataSource", "[cancelRideRequest] decode error: " + result.error.toString())
             return Result.Error(IOException(result.error))
         } catch (e: Throwable) {
+            Log.e("MapDataSource", "[cancelRideRequest] network error: $e")
             return Result.Error(IOException("cancel ride failed $e", e))
         }
     }
@@ -91,8 +97,10 @@ class MapDataSource {
                 val record = Json.decodeFromString<DriveRecord>(result.resData)
                 return Result.Success(record)
             }
+            Log.e("MapDataSource", "[pollDriveRecord] decode error: " + result.error.toString())
             return Result.Error(IOException(result.error))
         } catch (e: Throwable) {
+            Log.e("MapDataSource", "[pollDriveRecord] network error: $e")
             return Result.Error(IOException("poll drive record failure with error: $e", e))
         }
     }
