@@ -74,10 +74,23 @@ class MapsViewModel(
         }
     }
 
-    fun refreshRide(delayTime: Long = 0, showFinish: Boolean = false) {
+    fun getCurrentRide(delayTime: Long = 0) {
         viewModelScope.launch {
             delay(delayTime)
-            val result = dataSource.checkIfCurrentRideAvailable(showFinish)
+            val result = dataSource.checkIfCurrentRideAvailable()
+            println("#K_check current ride result: $result")
+            if (result is Result.Success) {
+                _currentRide.value = result.data
+            } else {
+                _currentRide.value = null
+            }
+        }
+    }
+
+    fun refreshRide(rid: String, delayTime: Long = 0) {
+        viewModelScope.launch {
+            delay(delayTime)
+            val result = dataSource.refreshCurrentRide(rid)
             println("#K_check current ride result: $result")
             if (result is Result.Success) {
                 _currentRide.value = result.data

@@ -141,7 +141,7 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         }
         enableMyLocation()
 
-        viewModel.refreshRide()
+        viewModel.getCurrentRide()
     }
 
     override fun onCreateView(
@@ -173,12 +173,12 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         viewModel.latestDriverLocation.observe(viewLifecycleOwner,
             Observer { driver ->
                 val location = Utils.decodeLocationString(driver.driver_location)
-                if (driverLocation != null) {
-                    driverLocation?.remove()
-                }
-                driverLocation = location?.let { placeMarkerOnMap(it) }
 
                 if (isPostingDriveRecord) {
+                    if (driverLocation != null) {
+                        driverLocation?.remove()
+                    }
+                    driverLocation = location?.let { placeMarkerOnMap(it) }
                     rid?.let { viewModel.pollDriveRecord(it) }
                 }
             })
@@ -289,7 +289,7 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
             }
             requestDirectionIfNeeded()
 
-            viewModel.refreshRide(3000)
+            rid?.let { viewModel.refreshRide(it, 3000) }
         } else if (status == OrderStatus.PICKING) {
             showActionButton()
             actionButton.text = "Ride received, waiting for pick up..."
@@ -304,7 +304,7 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
             }
             requestDirectionIfNeeded()
 
-            viewModel.refreshRide(10000)
+            rid?.let { viewModel.refreshRide(it, 10000) }
         } else if (status == OrderStatus.ARRIVED_USER_LOCATION) {
             showActionButton()
             actionButton.text = "Driver arrived!"
@@ -314,7 +314,7 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
             isPostingDriveRecord = false
             requestDirectionIfNeeded()
 
-            viewModel.refreshRide(10000)
+            rid?.let { viewModel.refreshRide(it, 10000) }
         } else if (status == OrderStatus.STARTED) {
             showActionButton()
             actionButton.text = if (type == OrderType.RIDE_SERVICE) {
@@ -339,7 +339,7 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
             }
             requestDirectionIfNeeded()
 
-            viewModel.refreshRide(3000, showFinish = true)
+            rid?.let { viewModel.refreshRide(it, 3000) }
         } else if (status == OrderStatus.FINISHED) {
             val text = if (type == OrderType.RIDE_SERVICE) {
                 "You've arrived!!"
@@ -349,7 +349,7 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
             dest = null
             Toast.makeText(requireContext(), text, Toast.LENGTH_SHORT).show()
             map.clear()
-            defaultStatusActions()
+            setStatus(null)
         } else {
             defaultStatusActions()
         }
@@ -370,6 +370,7 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         actionButton.isVisible = false
 
         // logic updates
+        rid = null
         isPostingDriveRecord = false
         isAutoPollingEnabled = false
         needDirection = true
@@ -385,6 +386,7 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         clearButton.setOnClickListener {
             map.clear()
             dest = null
+            reloadData()
         }
 
         homeServiceButton.setOnClickListener {

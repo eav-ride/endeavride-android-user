@@ -17,7 +17,7 @@ import java.io.IOException
 
 class MapDataSource {
 
-    private val mapsKey = "AIzaSyAxxnazPy8mIAROs-chSCrDknDvzyB3Vho"
+    private val mapsKey = "AIzaSyDuZdNKaACOrspkxDhk1h0FeiDZRj78X7k"
 
     suspend fun createRideRequest(rideRequest: RideRequest): Result<Ride> {
         try {
@@ -35,9 +35,24 @@ class MapDataSource {
         }
     }
 
-    suspend fun checkIfCurrentRideAvailable(showFinish: Boolean): Result<Ride> {
+    suspend fun checkIfCurrentRideAvailable(): Result<Ride> {
         try {
-            val result = NetworkUtils.getRequest("r", listOf("showfinish" to showFinish))
+            val result = NetworkUtils.getRequest("r", null)
+            if (result.resData != null) {
+                val ride = Json.decodeFromString<Ride>(result.resData)
+                return Result.Success(ride)
+            }
+            Log.e("MapDataSource", "[checkIfCurrentRideAvailable] decode error: " + result.error.toString())
+            return Result.Error(IOException(result.error))
+        } catch (e: Throwable) {
+            Log.e("MapDataSource", "[checkIfCurrentRideAvailable] network error: $e")
+            return Result.Error(IOException("check in progress (current) ride failed $e", e))
+        }
+    }
+
+    suspend fun refreshCurrentRide(rid: String): Result<Ride> {
+        try {
+            val result = NetworkUtils.getRequest("r/$rid", null)
             if (result.resData != null) {
                 val ride = Json.decodeFromString<Ride>(result.resData)
                 return Result.Success(ride)
