@@ -24,5 +24,5 @@
 <!--    AIzaSyAxxnazPy8mIAROs-chSCrDknDvzyB3Vho-->
 <!--    AIzaSyBQLhQPNU5UFQczahI4ZHX4CReuH1D5o8U-->
 <!--    AIzaSyDuZdNKaACOrspkxDhk1h0FeiDZRj78X7k-->
-    <string name="google_maps_key" templateMergeStrategy="preserve" translatable="false">AIzaSyDuZdNKaACOrspkxDhk1h0FeiDZRj78X7k</string>
+    <string name="google_maps_key" templateMergeStrategy="preserve" translatable="false">AIzaSyBQLhQPNU5UFQczahI4ZHX4CReuH1D5o8U</string>
 </resources>

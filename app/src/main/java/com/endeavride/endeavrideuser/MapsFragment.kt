@@ -39,6 +39,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.PolylineOptions
+import com.google.android.libraries.places.api.Places
 import com.google.android.libraries.places.api.model.Place
 import com.google.android.libraries.places.widget.AutocompleteSupportFragment
 import com.google.android.libraries.places.widget.listener.PlaceSelectionListener
@@ -96,7 +97,7 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
     private lateinit var map: GoogleMap
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var lastLocation: Location? = null
-
+    private var isInitialLoadingLocation = true
     private lateinit var locationCallback: LocationCallback
     private lateinit var locationRequest: LocationRequest
     private var locationUpdateState = false
@@ -148,7 +149,7 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
+    ): View {
         _binding = FragmentMapsBinding.inflate(inflater, container, false)
         homeServiceButton = binding.homeServiceButton
         rideServiceButton = binding.requestDriverButton
@@ -210,21 +211,25 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
                 setStatus(ride)
             })
 
+        Places.initialize(requireContext(), getString(R.string.google_maps_key))
         val autocompleteFragment = childFragmentManager.findFragmentById(R.id.autocomplete_fragment) as AutocompleteSupportFragment
 
         // Specify the types of place data to return.
-        autocompleteFragment.setPlaceFields(listOf(Place.Field.ID, Place.Field.NAME))
+        autocompleteFragment.setPlaceFields(listOf(Place.Field.ID, Place.Field.NAME, Place.Field.LAT_LNG))
 
         // Set up a PlaceSelectionListener to handle the response.
         autocompleteFragment.setOnPlaceSelectedListener(object : PlaceSelectionListener {
             override fun onPlaceSelected(place: Place) {
-                // TODO: Get info about the selected place.
-                Log.i(TAG, "Place: ${place.name}, ${place.id}")
+                Log.i(TAG, "Place: ${place.name}, ${place.id}, ${place.latLng}")
+                place.latLng?.let {
+                    map.clear()
+                    placeDestinationOnMap(it)
+                }
             }
 
             override fun onError(status: Status) {
-                // TODO: Handle the error.
                 Log.i(TAG, "An error occurred: $status")
+                Toast.makeText(requireContext(), "An error occurred! Please try again later!", Toast.LENGTH_SHORT).show()
             }
         })
 
@@ -235,7 +240,13 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
                 super.onLocationResult(p0)
                 lastLocation = p0.lastLocation
                 val currentLatLng = LatLng(p0.lastLocation.latitude, p0.lastLocation.longitude)
-                map.moveCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 12f))
+                if (isInitialLoadingLocation) {
+                    isInitialLoadingLocation = false
+                    map.moveCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 12f))
+                }
+                if (status == OrderStatus.STARTED) {
+                    map.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 12f))
+                }
             }
         }
         createLocationRequest()
@@ -430,14 +441,25 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         super.onResume()
         if (permissionDenied) {
             // Permission was not granted, display error dialog.
-//            showMissingPermissionError()
+            showMissingPermissionError()
             permissionDenied = false
+        } else {
+            startLocationUpdates()
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        stopLocationUpdates()
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    private fun showMissingPermissionError() {
+        Toast.makeText(requireContext(), "Permission was not granted! Please grant the permission to use the app!", Toast.LENGTH_LONG).show()
     }
 
     private fun getPixelFromDp(dps: Int): Int {
@@ -466,10 +488,10 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
                 Manifest.permission.ACCESS_FINE_LOCATION, true
             )
 
-            Log.d("TAG", "#K_permission granting")
+            Log.d(TAG, "location permission granting")
             return
         }
-        Log.d("TAG", "#K_permission granted")
+        Log.d(TAG, "location permission granted!")
         map.isMyLocationEnabled = true
         map.mapType = GoogleMap.MAP_TYPE_NORMAL
 
@@ -478,9 +500,10 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
             if (location != null) {
                 lastLocation = location
                 val currentLatLng = LatLng(location.latitude, location.longitude)
-                map.moveCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 12f))
                 if (animated) {
                     map.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 12f))
+                } else {
+                    map.moveCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 12f))
                 }
 
                 requestDirectionIfNeeded()
@@ -499,6 +522,8 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
 
         val titleStr = getAddress(location)  // add these two lines
         markerOptions.title(titleStr)
+
+        map.animateCamera(CameraUpdateFactory.newLatLngZoom(location, 12f))
 
         return map.addMarker(markerOptions)
     }
@@ -548,6 +573,10 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, null /* Looper */)
     }
 
+    private fun stopLocationUpdates() {
+        fusedLocationClient.removeLocationUpdates(locationCallback)
+    }
+
     private fun createLocationRequest() {
         locationRequest = LocationRequest()
         locationRequest.interval = 10000
@@ -578,29 +607,6 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
             }
         }
     }
-
-//    private fun loadPlacePicker() {
-//        val builder = PlacePicker.IntentBuilder()
-//
-//        try {
-//            startActivityForResult(builder.build(requireActivity()), PLACE_PICKER_REQUEST)
-//        } catch (e: GooglePlayServicesRepairableException) {
-//            e.printStackTrace()
-//        } catch (e: GooglePlayServicesNotAvailableException) {
-//            e.printStackTrace()
-//        }
-//    }
-
-//    override fun onMyLocationButtonClick(): Boolean {
-//        Toast.makeText(requireContext(), "MyLocation button clicked", Toast.LENGTH_SHORT).show()
-//        // Return false so that we don't consume the event and the default behavior still occurs
-//        // (the camera animates to the user's current position).
-//        return false
-//    }
-//
-//    override fun onMyLocationClick(location: Location) {
-//        Toast.makeText(requireContext(), "Current location:\n$location", Toast.LENGTH_LONG).show()
-//    }
 
     // [START maps_check_location_permission_result]
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
