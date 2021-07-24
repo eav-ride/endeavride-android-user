@@ -24,6 +24,7 @@ import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentContainerView
 import androidx.fragment.app.FragmentManager
+import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import com.endeavride.endeavrideuser.PermissionUtils.isPermissionGranted
@@ -70,7 +71,7 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         ARRIVED_USER_LOCATION(3),
         STARTED(4),
         FINISHED(5),
-        CANCELED(6);
+        CANCELLED(6);
 
         companion object {
             private val VALUES = values()
@@ -88,10 +89,9 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         }
     }
 
-//    private lateinit var progressBar: ProgressBar
     private val adapter = PlacePredictionAdapter()
     private lateinit var viewModel: MapsViewModel
-    private lateinit var loginViewModel: LoginViewModel
+    private val sharedLoginModel: LoginViewModel by activityViewModels()
 
     private var permissionDenied = false
     private lateinit var map: GoogleMap
@@ -169,6 +169,11 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         val mapFragment = childFragmentManager.findFragmentById(R.id.map) as SupportMapFragment?
         mapFragment?.getMapAsync(callback)
 
+        val logoutButton: Button = binding.logoutButton
+        logoutButton.setOnClickListener {
+            sharedLoginModel.logout()
+        }
+
         reloadData()
 
         viewModel.latestDriverLocation.observe(viewLifecycleOwner,
@@ -193,7 +198,6 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
 
         viewModel.currentRide.observe(viewLifecycleOwner,
             Observer { ride ->
-                println("#K_current ride $ride")
                 this.rid = ride?.rid
                 if (ride == null) {
                     dest = null
@@ -289,9 +293,7 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
                         .setNegativeButton("Yes, cancel it",
                             DialogInterface.OnClickListener { dialog, id ->
                                 // User cancelled the dialog
-                                // TODO: send cancel task request
                                 rid?.let { it1 -> viewModel.cancelRide(it1) }
-                                map.clear()
                             })
                     // Create the AlertDialog object and return it
                     builder.create()
@@ -361,6 +363,11 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
             Toast.makeText(requireContext(), text, Toast.LENGTH_SHORT).show()
             map.clear()
             setStatus(null)
+        } else if (status == OrderStatus.CANCELLED) {
+            dest = null
+            map.clear()
+            status = OrderStatus.DEFAULT
+            defaultStatusActions()
         } else {
             defaultStatusActions()
         }
@@ -412,7 +419,7 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
         }
 
         rideServiceButton.setOnClickListener {
-            Log.d(TAG, "#K_send driver request with points $lastLocation and $dest")
+            Log.d(TAG, "Sending driver request with points $lastLocation and $dest")
             isAutoPollingEnabled = true
             dest?.let { it1 -> NetworkUtils.user?.userId?.let { it2 ->
                 lastLocation?.let { it3 -> LatLng(it3.latitude, it3.longitude) }?.let { it4 ->

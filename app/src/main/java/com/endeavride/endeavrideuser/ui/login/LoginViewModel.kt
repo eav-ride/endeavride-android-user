@@ -1,6 +1,5 @@
 package com.endeavride.endeavrideuser.ui.login
 
-import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -11,8 +10,6 @@ import com.endeavride.endeavrideuser.data.LoginRepository
 import com.endeavride.endeavrideuser.data.Result
 
 import com.endeavride.endeavrideuser.R
-import com.endeavride.endeavrideuser.data.model.LoggedInUser
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class LoginViewModel(private val loginRepository: LoginRepository) : ViewModel() {
@@ -54,6 +51,10 @@ class LoginViewModel(private val loginRepository: LoginRepository) : ViewModel()
                 _loginResult.value = LoginResult(error = R.string.login_failed)
             }
         }
+    }
+
+    fun logout() {
+        _loggedInUser.value = LoggedInUserView(displayName = "")
     }
 
     fun loginDataChanged(username: String, password: String) {

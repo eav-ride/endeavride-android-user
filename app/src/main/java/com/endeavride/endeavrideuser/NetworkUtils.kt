@@ -26,6 +26,8 @@ class NetworkUtils {
                 "User-Agent" to "DemoApp ENDEAVRideUser",
                 "Content-Type" to "application/json"
             )
+//            FuelManager.instance.basePath = "http://ec2-18-220-53-8.us-east-2.compute.amazonaws.com:3300/"
+//            FuelManager.instance.basePath = "https://10.0.2.2:8443/"
             FuelManager.instance.basePath = "http://10.0.2.2:3300/"
         }
 
@@ -97,47 +99,4 @@ class NetworkUtils {
             }
         }
     }
-
-    //this method builds the query using the appropriate request params
-//    fun getSearchUrl(term: String, skip: Int, take: Int): String {
-//        val BaseUrl = "https://en.wikipedia.org/w/api.php"
-//        return BaseUrl + "?action=query" +
-//                "&formatversion=2" +
-//                "&generator=prefixsearch" +
-//                "&gpssearch=$term" +
-//                "&gpslimit=$take" +
-//                "&gpsoffset=$skip" +
-//                "&prop=pageimages|info" +
-//                "&piprop=thumbnail|url" +
-//                "&pithumbsize=200" +
-//                "&pilimit=$take" +
-//                "&wbptterms=description" +
-//                "&format=json" +
-//                "&inprop=url"
-//    }
-
-    //This methods makes the HTTP request asynchronously with Fuel and returns the deserialized result if request is successful
-//    fun search(term: String, skip: Int, take: Int, responseHandler : (result: WikiResult) -> Unit?){
-//        Urls.getSearchUrl(term, skip, take).httpGet()
-//            .responseObject(WikipediaDataDeserializer()){ _, _, result->
-//
-//                when(result){
-//                    is Result.Failure ->{
-//                        Log.i("ErrorMsg", result.getException().message)
-//                        result.getException().stackTrace
-//                        throw Exception(result.getException())
-//                    }
-//
-//                    is Result.Success ->{
-//                        val(data, _) = result
-//                        responseHandler.invoke(data as WikiResult)
-//                    }
-//                }
-//            }
-//    }
-//
-//    //This class deserializes the result using Gson
-//    class WikipediaDataDeserializer : ResponseDeserializable<WikiResult>{
-//        override fun deserialize(reader: Reader) = Gson().fromJson(reader, WikiResult::class.java)
-//    }
 }

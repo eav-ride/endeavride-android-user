@@ -29,6 +29,7 @@ import com.endeavride.endeavrideuser.Utils
 class LoginFragment : Fragment() {
     companion object {
         const val LOGIN_SUCCESSFUL: String = "LOGIN_SUCCESSFUL"
+        private const val TAG = "LoginFragment"
     }
 
     private lateinit var loginViewModel: LoginViewModel
@@ -44,7 +45,7 @@ class LoginFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
+    ): View {
 
         _binding = FragmentLoginBinding.inflate(inflater, container, false)
         return binding.root
@@ -173,7 +174,7 @@ class LoginFragment : Fragment() {
 
     private fun showLoginFailed(@StringRes errorString: Int) {
         val appContext = context?.applicationContext ?: return
-        Log.d("Msg", "#K_Login failed! $errorString")
+        Log.e(TAG, "Login failed! $errorString")
         Toast.makeText(appContext, errorString, Toast.LENGTH_LONG).show()
     }
 

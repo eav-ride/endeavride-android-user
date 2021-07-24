@@ -18,7 +18,6 @@ import com.endeavride.endeavrideuser.ui.login.LoginViewModel
 import com.endeavride.endeavrideuser.ui.login.LoginViewModelFactory
 import dagger.hilt.android.AndroidEntryPoint
 
-//@AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
 
     private lateinit var loginViewModel: LoginViewModel
@@ -36,15 +35,8 @@ class MainActivity : AppCompatActivity() {
         val navView: BottomNavigationView = binding.navView
 
         val navController = findNavController(R.id.nav_host_fragment_activity_main)
-        // Passing each menu ID as a set of Ids because each
-        // menu should be considered as top level destinations.
-//        val appBarConfiguration = AppBarConfiguration(
-//            setOf(
-//                R.id.navigation_home, R.id.navigation_dashboard, R.id.navigation_notifications, R.id.navigation_map
-//            )
-//        )
-//        setupActionBarWithNavController(navController, appBarConfiguration)
         navView.setupWithNavController(navController)
+        navView.visibility = View.GONE
 
         loginViewModel = ViewModelProvider(this, LoginViewModelFactory())
             .get(LoginViewModel::class.java)
@@ -54,9 +46,6 @@ class MainActivity : AppCompatActivity() {
                 loggedInUser ?: return@Observer
                 if (loggedInUser.displayName == "") {
                     navController.navigate(R.id.navigation_login)
-                    navView.visibility = View.GONE
-                } else {
-                    navView.visibility = View.VISIBLE
                 }
             })
         loginViewModel.loadUserInfoIfAvailable()
@@ -65,9 +54,6 @@ class MainActivity : AppCompatActivity() {
         val savedStateHandle = currentBackStackEntry.savedStateHandle
         savedStateHandle.getLiveData<Boolean>(LoginFragment.LOGIN_SUCCESSFUL)
             .observe(currentBackStackEntry, Observer { success ->
-                if (success) {
-                    navView.visibility = View.VISIBLE
-                }
             })
     }
 
