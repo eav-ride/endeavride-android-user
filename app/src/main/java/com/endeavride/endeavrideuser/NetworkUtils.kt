@@ -26,9 +26,9 @@ class NetworkUtils {
                 "User-Agent" to "DemoApp ENDEAVRideUser",
                 "Content-Type" to "application/json"
             )
-            FuelManager.instance.basePath = "http://ec2-18-220-53-8.us-east-2.compute.amazonaws.com:3300/"
-//            FuelManager.instance.basePath = "https://10.0.2.2:8443/"
-//            FuelManager.instance.basePath = "http://10.0.2.2:3300/"
+            FuelManager.instance.basePath = "http://ec2-18-220-53-8.us-east-2.compute.amazonaws.com:3300/"  //ec2 server
+//            FuelManager.instance.basePath = "https://10.0.2.2:8443/"   //local server with ssl certificate setup
+//            FuelManager.instance.basePath = "http://10.0.2.2:3300/"    //local server, 10.0.2.2 represent localhost when running on Android simulator, change to your local server IP address before use
         }
 
         suspend fun getRequestWithFullpath(path: String): RequestResultModel {
