@@ -248,9 +248,6 @@ class MapsFragment : Fragment(), GoogleMap.OnMarkerClickListener, OnRequestPermi
                     isInitialLoadingLocation = false
                     map.moveCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 12f))
                 }
-                if (status == OrderStatus.STARTED) {
-                    map.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 12f))
-                }
             }
         }
         createLocationRequest()

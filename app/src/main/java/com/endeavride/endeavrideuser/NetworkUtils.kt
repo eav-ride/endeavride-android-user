@@ -26,9 +26,9 @@ class NetworkUtils {
                 "User-Agent" to "DemoApp ENDEAVRideUser",
                 "Content-Type" to "application/json"
             )
-//            FuelManager.instance.basePath = "http://ec2-18-220-53-8.us-east-2.compute.amazonaws.com:3300/"
+            FuelManager.instance.basePath = "http://ec2-18-220-53-8.us-east-2.compute.amazonaws.com:3300/"
 //            FuelManager.instance.basePath = "https://10.0.2.2:8443/"
-            FuelManager.instance.basePath = "http://10.0.2.2:3300/"
+//            FuelManager.instance.basePath = "http://10.0.2.2:3300/"
         }
 
         suspend fun getRequestWithFullpath(path: String): RequestResultModel {
